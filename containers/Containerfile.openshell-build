@@ -1,0 +1,20 @@
+From quay.io/fedora/fedora:latest
+
+RUN dnf install \
+        cargo \
+        cargo-rpm-macros \
+        clang-devel \
+        cmake \
+        gcc \
+        gcc-c++ \
+        git-core \
+        make \
+        packit \
+        pandoc \
+        pkg-config \
+        python3-devel \
+        rpm-build \
+        rust \
+        systemd-rpm-macros \
+        z3-devel \
+    -y

@@ -1,0 +1,3 @@
+[submodule "submodule/openshell"]
+	path = submodule/openshell
+	url = git@github.com:NVIDIA/OpenShell.git

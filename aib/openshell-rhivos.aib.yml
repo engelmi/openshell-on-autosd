@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=https://centos.gitlab.io/automotive/src/automotive-image-builder/manifest_schema.yml
+
+name: openshell
+
+content:
+  repos:
+    # Using copr repo where EPEL10 packages of openshell are published
+    - id: copr-openshell
+      baseurl: https://download.copr.fedorainfracloud.org/results/maxamillion/nvidia-openshell/rhel%2Bepel-10-$arch/
+    
+
+    # TODO: Remove. Only for development.
+    # Using locally built openshell packages since COPR might be outdated. Favor RPMs in this repo over others.
+    - id: copr-openshell
+      baseurl: file:///home/mengel/projects/engelmi/openshell-on-rhivos/repo/
+      priority: 0
+
+  rpms:
+    - vi
+
+    - sqlite
+    - podman
+    - openshell
+    - openshell-gateway
+    # python3-openshell
+    #  > Needs multiple packages which are not available for AutoSD, like protobuf >= 4.25
+    # - python3-openshell
+
+    # For testing the image only:
+    - openssh-server
+    - openssh-clients
+  
+  add_files:
+    - path: /etc/systemd/system/openshell-gateway.service.d/openshell-gateway-podman.conf
+      source_path: files/systemd/openshell-gateway-podman.conf
+
+  make_dirs:
+    - path: /var/sqlite/
+      parents: True
+      exist_ok: True
+    - path: /etc/systemd/system/openshell-gateway.service.d/
+      parents: True
+      exist_ok: True
+  
+  add_symlinks:
+    - link: /etc/systemd/system/openshell-gateway.service
+      target: /usr/lib/systemd/user/openshell-gateway.service
+    - link: /usr/lib/systemd/system/openshell-gateway.service
+      target: /usr/lib/systemd/user/openshell-gateway.service
+  
+  container_images:
+    - source: ghcr.io/nvidia/openshell/supervisor
+      tag: latest
+  
+  systemd:
+    enabled_services:
+      # Enable ssh daemon - Required for testing the image only
+      - sshd.service
+
+      # systemd services for openshell-gateway
+      #  > podman Unix Domain Socket needed for spawning containers
+      - openshell-gateway.service
+      - podman.socket
+  
+auth:
+  # "password"
+  root_password: $6$xoLqEUz0cGGJRx01$H3H/bFm0myJPULNMtbSsOFd/2BnHqHkMD92Sfxd.EKM9hXTWSmELG8cf205l6dktomuTcgKGGtGDgtvHVXSWU.
+  # Required for testing the image only:
+  sshd_config:
+    PasswordAuthentication: true
+    PermitRootLogin: true
