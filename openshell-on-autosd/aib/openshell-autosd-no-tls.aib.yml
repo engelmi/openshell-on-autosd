@@ -4,44 +4,44 @@ name: openshell
 
 content:
   repos:
-    # Using copr repo where EPEL10 packages of openshell are published
     - id: copr-openshell
       baseurl: https://download.copr.fedorainfracloud.org/results/maxamillion/nvidia-openshell/rhel%2Bepel-10-$arch/
     
-
-    # TODO: Remove. Only for development.
-    # Using locally built openshell packages since COPR might be outdated. Favor RPMs in this repo over others.
-    - id: copr-openshell
-      baseurl: file:///home/mengel/projects/engelmi/openshell-on-rhivos/repo/
-      priority: 0
-
   rpms:
+    # only for debugging
+    - jq
     - vi
+    - tree
+    - strace
 
+    # enable remote sessions
+    - openssh-server
+    - openssh-clients
+
+    # RPMs required by OpenShell
     - sqlite
     - podman
     - openshell
     - openshell-gateway
-    # python3-openshell
-    #  > Needs multiple packages which are not available for AutoSD, like protobuf >= 4.25
-    # - python3-openshell
-
-    # For testing the image only:
-    - openssh-server
-    - openssh-clients
+  
+  make_dirs:
+    - path: /etc/openshell/config
+      parents: true
+      exist_ok: true
+    - path: /etc/systemd/system/openshell-gateway.service.d/
+      parents: true
+      exist_ok: true
   
   add_files:
-    - path: /etc/systemd/system/openshell-gateway.service.d/openshell-gateway-podman.conf
-      source_path: files/systemd/openshell-gateway-podman.conf
+    # openshell-gateway systemd service overwrites via dropin
+    - path: /etc/systemd/system/openshell-gateway.service.d/openshell-gateway-podman-no-tls.conf
+      source_path: files/systemd/openshell-gateway-podman-no-tls.conf
+    # openshell-gateway env used by the systemd service
+    - path: /etc/openshell/config/gateway-no-tls.env
+      source_path: files/openshell/gateway-no-tls.env
+    - path: /etc/openshell/config/gateway-no-tls.toml
+      source_path: files/openshell/gateway-no-tls.toml
 
-  make_dirs:
-    - path: /var/sqlite/
-      parents: True
-      exist_ok: True
-    - path: /etc/systemd/system/openshell-gateway.service.d/
-      parents: True
-      exist_ok: True
-  
   add_symlinks:
     - link: /etc/systemd/system/openshell-gateway.service
       target: /usr/lib/systemd/user/openshell-gateway.service
@@ -49,12 +49,11 @@ content:
       target: /usr/lib/systemd/user/openshell-gateway.service
   
   container_images:
-    - source: ghcr.io/nvidia/openshell/supervisor
-      tag: latest
+    - source: ghcr.io/nvidia/openshell-community/sandboxes/base
+      tag: db19652
   
   systemd:
     enabled_services:
-      # Enable ssh daemon - Required for testing the image only
       - sshd.service
 
       # systemd services for openshell-gateway
@@ -65,7 +64,7 @@ content:
 auth:
   # "password"
   root_password: $6$xoLqEUz0cGGJRx01$H3H/bFm0myJPULNMtbSsOFd/2BnHqHkMD92Sfxd.EKM9hXTWSmELG8cf205l6dktomuTcgKGGtGDgtvHVXSWU.
-  # Required for testing the image only:
+  # allow root login for debugging
   sshd_config:
     PasswordAuthentication: true
     PermitRootLogin: true

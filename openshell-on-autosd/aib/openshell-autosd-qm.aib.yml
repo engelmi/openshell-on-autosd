@@ -1,0 +1,84 @@
+# yaml-language-server: $schema=https://centos.gitlab.io/automotive/src/automotive-image-builder/manifest_schema.yml
+
+name: openshell
+
+content:
+  repos:
+    - id: copr-openshell
+      baseurl: https://download.copr.fedorainfracloud.org/results/maxamillion/nvidia-openshell/rhel%2Bepel-10-$arch/
+
+  rpms:
+    # CLI of OpenShell in root partition
+    - openshell
+
+    # enable remote sessions
+    - openssh-server
+    - openssh-clients
+
+  add_files:
+    - path: /etc/containers/systemd/qm.container.d/openshell.conf
+      source_path: files/qm/openshell.conf
+
+  systemd:
+    enabled_services:
+      - sshd.service
+
+qm:
+  content:
+    repos:
+      - id: copr-openshell
+        baseurl: https://download.copr.fedorainfracloud.org/results/maxamillion/nvidia-openshell/rhel%2Bepel-10-$arch/
+      
+    rpms:
+      # only for debugging
+      - jq
+      - vi
+      - tree
+      - strace
+
+      - sqlite
+      - podman
+      - openshell-gateway
+
+    make_dirs:
+      - path: /etc/openshell/config
+        parents: true
+        exist_ok: true
+      - path: /etc/systemd/system/openshell-gateway.service.d/
+        parents: true
+        exist_ok: true
+    
+    add_files:
+      # openshell-gateway systemd service overwrites via dropin
+      - path: /etc/systemd/system/openshell-gateway.service.d/openshell-gateway-podman-qm.conf
+        source_path: files/systemd/openshell-gateway-podman-qm.conf
+      # openshell-gateway env used by the systemd service
+      - path: /etc/openshell/config/gateway-qm.env
+        source_path: files/openshell/gateway-qm.env
+      - path: /etc/openshell/config/gateway-qm.toml
+        source_path: files/openshell/gateway-qm.toml
+
+    add_symlinks:
+      - link: /etc/systemd/system/openshell-gateway.service
+        target: /usr/lib/systemd/user/openshell-gateway.service
+      - link: /usr/lib/systemd/system/openshell-gateway.service
+        target: /usr/lib/systemd/user/openshell-gateway.service
+    
+    container_images:
+      - source: ghcr.io/nvidia/openshell-community/sandboxes/base
+        tag: db19652
+    
+    systemd:
+      enabled_services:
+        # systemd services for openshell-gateway
+        #  > podman Unix Domain Socket needed for spawning containers
+        - openshell-gateway.service
+        - podman.socket
+  
+auth:
+  # "password"
+  root_password: $6$xoLqEUz0cGGJRx01$H3H/bFm0myJPULNMtbSsOFd/2BnHqHkMD92Sfxd.EKM9hXTWSmELG8cf205l6dktomuTcgKGGtGDgtvHVXSWU.
+  # allow root login for debugging
+  sshd_config:
+    PasswordAuthentication: true
+    PermitRootLogin: true

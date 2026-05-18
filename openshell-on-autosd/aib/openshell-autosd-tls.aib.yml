@@ -1,0 +1,91 @@
+# yaml-language-server: $schema=https://centos.gitlab.io/automotive/src/automotive-image-builder/manifest_schema.yml
+
+name: openshell
+
+content:
+  repos:
+    - id: copr-openshell
+      baseurl: https://download.copr.fedorainfracloud.org/results/maxamillion/nvidia-openshell/rhel%2Bepel-10-$arch/
+    
+  rpms:
+    # only for debugging
+    - jq
+    - vi
+    - tree
+    - strace
+
+    # enable remote sessions
+    - openssh-server
+    - openssh-clients
+
+    # RPMs required by OpenShell 
+    - sqlite
+    - podman
+    - openshell-gateway
+  
+  make_dirs:
+    - path: /etc/openshell/config
+      parents: true
+      exist_ok: true
+
+    - path: /etc/openshell/state/tls/client
+      parents: true
+      exist_ok: true
+    - path: /etc/openshell/state/tls/server
+      parents: true
+      exist_ok: true
+    
+    - path: /etc/systemd/system/openshell-gateway.service.d/
+      parents: true
+      exist_ok: true
+  
+  add_files:
+    # openshell-gateway systemd service overwrites via dropin
+    - path: /etc/systemd/system/openshell-gateway.service.d/openshell-gateway-podman-tls.conf
+      source_path: files/systemd/openshell-gateway-podman-tls.conf
+    # openshell-gateway env used by the systemd service
+    - path: /etc/openshell/config/gateway-tls.env
+      source_path: files/openshell/gateway-tls.env
+    - path: /etc/openshell/config/gateway-tls.toml
+      source_path: files/openshell/gateway-tls.toml
+    
+    - path: /etc/openshell/state/tls/ca.crt
+      source_path: files/pki/tls/ca.crt
+    - path: /etc/openshell/state/tls/ca.key
+      source_path: files/pki/tls/ca.key
+    
+    - path: /etc/openshell/state/tls/client/tls.crt
+      source_path: files/pki/tls/client/tls.crt
+    - path: /etc/openshell/state/tls/client/tls.key
+      source_path: files/pki/tls/client/tls.key
+    - path: /etc/openshell/state/tls/server/tls.crt
+      source_path: files/pki/tls/server/tls.crt
+    - path: /etc/openshell/state/tls/server/tls.key
+      source_path: files/pki/tls/server/tls.key
+
+  add_symlinks:
+    - link: /etc/systemd/system/openshell-gateway.service
+      target: /usr/lib/systemd/user/openshell-gateway.service
+    - link: /usr/lib/systemd/system/openshell-gateway.service
+      target: /usr/lib/systemd/user/openshell-gateway.service
+  
+  container_images:
+    - source: ghcr.io/nvidia/openshell-community/sandboxes/base
+      tag: db19652
+  
+  systemd:
+    enabled_services:
+      - sshd.service
+
+      # systemd services for openshell-gateway
+      #  > podman Unix Domain Socket needed for spawning containers
+      - openshell-gateway.service
+      - podman.socket
+  
+auth:
+  # "password"
+  root_password: $6$xoLqEUz0cGGJRx01$H3H/bFm0myJPULNMtbSsOFd/2BnHqHkMD92Sfxd.EKM9hXTWSmELG8cf205l6dktomuTcgKGGtGDgtvHVXSWU.
+  # allow root login for debugging
+  sshd_config:
+    PasswordAuthentication: true
+    PermitRootLogin: true

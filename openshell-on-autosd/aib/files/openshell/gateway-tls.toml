@@ -1,0 +1,21 @@
+[openshell]
+version = 1
+
+[openshell.gateway]
+compute_drivers = ["podman"]
+default_image = "ghcr.io/nvidia/openshell-community/sandboxes/base:db19652"
+supervisor_image = "ghcr.io/nvidia/openshell/supervisor:14c5329f91d8f7c60e6274465bb1e246156074e7"
+guest_tls_ca = "/etc/openshell/state/tls/ca.crt"
+guest_tls_cert = "/etc/openshell/state/tls/client/tls.crt"
+guest_tls_key = "/etc/openshell/state/tls/client/tls.key"
+
+[openshell.drivers.podman]
+socket_path = "/run/podman/podman.sock"
+image_pull_policy = "missing"
+network_name = "openshell"
+stop_timeout_secs = 10
+
+[openshell.drivers.vm]
+state_dir = "/var/lib/openshell/vm-driver"
+driver_dir = "/usr/libexec/openshell"
+grpc_endpoint = "https://127.0.0.1:8080"

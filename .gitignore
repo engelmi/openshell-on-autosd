@@ -1,1 +1,11 @@
+# Local RPM repository
 repo/
+rpmrepo/
+rpms/
+
+# AIB build artifacts
+openshell-on-autosd/_build/
+openshell-on-autosd/build.json
+openshell-on-autosd/*.log
+openshell-on-autosd/openshell-autosd*.aib.*.img
+openshell-on-autosd/aib/files/pki/

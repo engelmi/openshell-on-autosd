@@ -1,0 +1,178 @@
+#!/usr/bin/bash
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+OPENSHELL_RPM_REPO_DIR="${SCRIPT_DIR}/rpms"
+AIB_DIR="${SCRIPT_DIR}/aib"
+
+PKI_TLS_DIR="${AIB_DIR}/files/pki/tls"
+PKI_MTLS_DIR="${AIB_DIR}/files/pki/mtls"
+
+
+clean_rpm_repo() {
+    rm -rf "${OPENSHELL_RPM_REPO_DIR}"
+}
+
+clean_pki_files() {
+      rm -rf "${PKI_TLS_DIR}"
+      rm -rf "${PKI_MTLS_DIR}"
+}
+
+clean_aib_files() {
+    rm -rf "${AIB_DIR}/build.json"
+    rm -rf "${AIB_DIR}/_build"
+    rm -rf "${SCRIPT_DIR}/*.aib.*.img"
+}
+
+clean() {
+    clean_rpm_repo
+    clean_pki_files
+    clean_aib_files
+}
+
+
+init_pki_files() {
+    echo "==========================="
+    echo "Setting up PKI files..."
+    echo ""
+
+    local OPENSHELL_GIT_DIR="${1}"
+    local OPENSHELL_INIT_PKI_SCRIPT="${OPENSHELL_GIT_DIR}/deploy/rpm/init-pki.sh"
+
+    mkdir -p "${PKI_TLS_DIR}"
+    mkdir -p "${PKI_MTLS_DIR}"
+
+    source $OPENSHELL_INIT_PKI_SCRIPT "${PKI_TLS_DIR}"
+
+    # Re-using the macro in the init-pki.sh to copy created pki files (and not screw with env variables)
+    # Only copy since client-side certificates in CLI_MTLS_DIR are used by openshell CLI
+    CLI_MTLS_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/openshell/gateways/openshell/mtls"
+    cp -r "${CLI_MTLS_DIR}"/* "${PKI_MTLS_DIR}"
+
+    # Creating .p12 for client with no password
+    openssl pkcs12 -export \
+        -in "${PKI_MTLS_DIR}/tls.crt" \
+        -inkey "${PKI_MTLS_DIR}/tls.key" \
+        -out "${PKI_MTLS_DIR}/openshell.p12" \
+        -passout pass:
+
+    echo ""
+    echo "Finished setting up PKI files"
+    echo "==========================="
+}
+
+build_image() {
+    local IMAGE_NAME="${1}"
+    # Use local repo via --define with custom built OpenShell RPMs for reproducibility
+    aib --verbose \
+        build \
+        --osbuild-manifest build.json \
+        --build-dir _build \
+        --distro autosd10 \
+        --arch x86_64 \
+        --target qemu \
+        --define "extra_repos=[{'id':'local-openshell','baseurl':'file://${SCRIPT_DIR}/rpms/','priority':1}]" \
+        --define "extra_build_repos=[{'id':'iceorlocal-openshellyx2','baseurl':'file://${SCRIPT_DIR}/rpms/','priority':1}]" \
+        "${AIB_DIR}/${IMAGE_NAME}.aib.yml" \
+        "localhost/${IMAGE_NAME}" \
+        "${SCRIPT_DIR}/${IMAGE_NAME}.aib.x86_64.img"
+}
+
+build_image_tls() {
+    build_image "openshell-autosd-tls"
+}
+build_image_no_tls() {
+    build_image "openshell-autosd-no-tls"
+}
+build_image_qm() {
+    build_image "openshell-autosd-qm"
+}
+
+buld_openshell_rpm() {
+    local OPENSHELL_GIT_DIR="${1}"
+
+    echo "==========================="
+    echo "Building OpenShell RPMs..."
+    echo ""
+
+    # Create build container image for building OpenShell RPM
+    podman build -t openshell-build -f "${SCRIPT_DIR}/containers/Containerfile.openshell" .
+    # Build OpenShell RPM
+    podman run \
+        --security-opt label=disable \
+        -v "${OPENSHELL_GIT_DIR}:/build" \
+        -- workdir /build \
+        openshell-build:latest \
+        /bin/bash -c 'packit build locally'
+
+    # Copy RPMs and create local RPM repository
+    clean_rpm_repo
+    mkdir -p "${OPENSHELL_RPM_REPO_DIR}"
+    cp "${OPENSHELL_GIT_DIR}/x86_64"/*.rpm "${OPENSHELL_RPM_REPO_DIR}"
+    createrepo_c "${OPENSHELL_RPM_REPO_DIR}"
+
+    echo ""
+    echo "Finished OpenShell RPM build"
+    echo "==========================="
+}
+
+setup() {
+    [ -z $1 ] && echo "Missing path to OpenShell git repository" && exit 1
+
+    build_openshell_rpm $1
+    init_pki_files $1
+}
+
+
+BASIC_USAGE=$(cat <<'EOF'
+Build script for building artifacts required by the OpenShell on AutoSD demo.
+
+Usage:
+    build [command]
+
+Available commands:
+    setup               Prepare OpenShell artifacts for the image build
+    build-demo-tls      Build the OpenShell on AutoSD demo with TLS enabled
+    build-demo-no-tls   Build the OpenShell on AutoSD demo with TLS disabled
+    build-demo-qm       Build the OpenShell on AutoSD demo with the gateway running in QM
+
+Flags:
+    -h, --help  Print help
+EOF
+)
+
+COMMAND=""
+case $1 in
+    setup)
+        COMMAND=setup
+        shift
+        ;;
+    build-demo-tls)
+        COMMAND=build_image_tls
+        shift
+        ;;
+    build-demo-no-tls)
+        COMMAND=build_image_no_tls
+        shift
+        ;;
+    build-demo-qm)
+        COMMAND=build_image_qm
+        shift
+        ;;
+    clean)
+        COMMAND=clean
+        shift
+        ;;
+    -h|--help)
+        echo "${BASIC_USAGE}"
+        exit 0
+        ;;
+    *)
+        echo "Unknown positional argument: $1"
+        echo "${BASIC_USAGE}"
+        exit 1
+        ;;
+esac
+
+$COMMAND "$@"
