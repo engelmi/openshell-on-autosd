@@ -41,6 +41,10 @@ content:
       source_path: files/openshell/gateway-no-tls.env
     - path: /etc/openshell/config/gateway-no-tls.toml
       source_path: files/openshell/gateway-no-tls.toml
+    
+    # an example openshell policy configuration
+    - path: /etc/openshell/custom-policy.yaml
+      source_path: files/openshell/custom-policy.yaml
 
   add_symlinks:
     - link: /etc/systemd/system/openshell-gateway.service

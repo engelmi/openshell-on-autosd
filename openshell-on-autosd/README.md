@@ -105,6 +105,42 @@ Created sandbox: summary-coonhound
 sandbox@sandbox-summary-coonhound:~$
 ```
 
+When a sandbox is being created without explicitly passing an [OpenShell policy](https://docs.nvidia.com/openshell/reference/policy-schema), then a default policy is being used to confine the file and network access of any application inside the sandbox container. The default policy can be seen [here](./assets/default-sandbox-policy.yaml). \
+In this default policy, no rule allows for fetching data from `http://www.google.com` or `https://api.github.com/repos/NVIDIA/OpenShell`, for example. Lets test this:
+
+```bash
+sandbox@sandbox-summary-coonhound:~$ curl http://www.google.com
+{"detail":"GET www.google.com:80/ not permitted by policy","error":"policy_denied"}
+
+sandbox@sandbox-summary-coonhound:~$ curl https://api.github.com/repos/NVIDIA/OpenShell
+curl: (56) CONNECT tunnel failed, response 403
+```
+
+The access to both endpoints got denied as expected since these are not defined (for the curl binary). Lets create a sandbox with a custom OpenShell policy to enable fetching from `https://api.github.com` with `curl`. The policy for this can be viewed [here](./aib/files/openshell/custom-policy.yaml).
+
+```bash
+# exit current sandbox and delete it
+sandbox@sandbox-summary-coonhound:~$ exit
+$ openshell sandbox delete summary-coonhound 
+
+# create the new sandbox with the custom policy
+$ openshell sandbox create --policy /etc/openshell/custom-policy.yaml
+sandbox@sandbox-dazzling-llama:~$ curl https://api.github.com/repos/NVIDIA/OpenShell
+
+  "id": 1166129534,
+  "node_id": "R_kgDORYG5fg",
+  "name": "OpenShell",
+  "full_name": "NVIDIA/OpenShell",
+  "private": false,
+  "owner": {
+    "login": "NVIDIA",
+...
+
+# Fetching from google.com should still fail
+sandbox@sandbox-dazzling-llama:~$ curl http://www.google.com
+{"detail":"GET www.google.com:80/ not permitted by policy","error":"policy_denied"}
+```
+
 
 ## Demo: OpenShell in root partition with TLS enabled
 
