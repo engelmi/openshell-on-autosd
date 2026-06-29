@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://centos.gitlab.io/automotive/src/automotive-image-builder/manifest_schema.yml
+# yaml-language-server: $schema=file:///home/mengel/projects/centos-auto/automotive-image-builder/files/manifest_schema.yml
 
 name: openshell
 
@@ -8,9 +8,10 @@ content:
       baseurl: https://download.copr.fedorainfracloud.org/results/maxamillion/nvidia-openshell/rhel%2Bepel-10-$arch/
 
   rpms:
-    # CLI of OpenShell in root partition
-    - openshell
-
+    - vi
+    - jq
+    - strace
+    
     # enable remote sessions
     - openssh-server
     - openssh-clients
@@ -38,7 +39,11 @@ qm:
 
       - sqlite
       - podman
+      - openshell
       - openshell-gateway
+
+      # it seems the sandbox needs this?! lets see!
+      - openssh-clients
 
     make_dirs:
       - path: /etc/openshell/config
@@ -47,7 +52,10 @@ qm:
       - path: /etc/systemd/system/openshell-gateway.service.d/
         parents: true
         exist_ok: true
-    
+      - path: /etc/sysusers.d/
+        parents: true
+        exist_ok: true
+ 
     add_files:
       # openshell-gateway systemd service overwrites via dropin
       - path: /etc/systemd/system/openshell-gateway.service.d/openshell-gateway-podman-qm.conf
@@ -55,8 +63,10 @@ qm:
       # openshell-gateway env used by the systemd service
       - path: /etc/openshell/config/gateway-qm.env
         source_path: files/openshell/gateway-qm.env
-      - path: /etc/openshell/config/gateway-qm.toml
+      - path: /etc/openshell/gateway.toml
         source_path: files/openshell/gateway-qm.toml
+      - path: /etc/sysusers.d/openshell-user.conf
+        source_path: files/systemd/openshell-user.conf
 
     add_symlinks:
       - link: /etc/systemd/system/openshell-gateway.service
@@ -66,7 +76,7 @@ qm:
     
     container_images:
       - source: ghcr.io/nvidia/openshell-community/sandboxes/base
-        tag: db19652
+        tag: latest
     
     systemd:
       enabled_services:
@@ -82,3 +92,6 @@ auth:
   sshd_config:
     PasswordAuthentication: true
     PermitRootLogin: true
+
+image:
+  selinux_mode: permissive
